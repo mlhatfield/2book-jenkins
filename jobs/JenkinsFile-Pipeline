@@ -1,0 +1,52 @@
+String ENV = "${params.env}"
+String 2BOOKINFRASTRUCTUREBRANCH = "${params.2bookinfrastructurebranch}"
+String NAANSENSEBRANCH = "${params.naansensebranch}"
+String DOCKERENCABULATORBRANCH = "${params.dockerencabulatorbranch}"
+String SOAPBRANCH = "${params.soapbranch}"
+String ACTION = "${params.action}"
+String BUILDENV = "${params.buildenv}"
+String REGION = "us-east-1"
+
+// Set ENVNODE
+if ( ENV.equals('prod') ) {
+    ENVNODE = "master"
+} else {
+    ENVNODE = "master"
+}
+
+node ("${ENVNODE}"){
+
+    step([$class: 'WsCleanup'])
+
+    stage("Checkout 2Book-Infrastructure Repo") {
+        checkout(
+           [$class: 'GitSCM',
+           branches: [[name: 2BOOKINFRASTRUCTUREBRANCH ]],
+           doGenerateSubmoduleConfigurations: false,
+           extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: '2bookinfrastructure' ]],
+           submoduleCfg: [],
+           userRemoteConfigs: [
+               [credentialsId: 'jenkins', // Need to find out what 2Books GitHub creds are for Jenkins Access
+               url: 'git@github.com:2Book/2book-infrastructure.git']
+            ]
+          ]
+        )
+    }
+
+    stage("Installing package dependencies") {
+        sh """
+            pip install --upgrade \
+            boto3 \
+            awscli > /dev/null 2>&1
+        """
+    }
+
+    stage("Deploy/Delete Stack"){
+      if ( ACTION.equals('delete') ) {
+        sh "./2bookinfrastructure/scripts/create-delete-stack.sh -e ${ENV} -a delete"
+        } 
+      else if ( ACTION.equals('create') ) {
+        sh "./2bookinfrastructure/scripts/create-delete-stack.sh -e ${ENV} -a create -b ${BUILDENV} -n ${NAANSENSEBRANCH} -d ${DOCKERENCABULATORBRANCH} -s ${SOAPBRANCH}"
+        }
+    }
+}

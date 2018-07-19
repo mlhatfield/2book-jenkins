@@ -1,0 +1,110 @@
+# https://github.com/thinegan/cloudformation-project2
+
+#################################################################
+# ECS Cluster Scaling Policies
+#################################################################
+
+EcsScaleUp:
+  Type: AWS::AutoScaling::ScalingPolicy
+  # Condition: isProduction
+  Properties:
+    AdjustmentType: ChangeInCapacity
+    AutoScalingGroupName: !Ref EcsASG
+    Cooldown: '300'
+    PolicyType: SimpleScaling
+    ScalingAdjustment: 1
+
+  EcsScaleDown:
+    Type: "AWS::AutoScaling::ScalingPolicy"
+    Properties:
+      AdjustmentType: "ChangeInCapacity"
+      AutoScalingGroupName:
+        Ref: "AppScalingGroup"
+      Cooldown: '300'
+      ScalingAdjustment: '-1'
+
+#################################################################
+# ECS Services Scaling Policies
+#################################################################
+
+  ECSScaleUpPolicySet1:
+    Type: 'AWS::ApplicationAutoScaling::ScalingPolicy'
+    Properties:
+      PolicyName: !Sub '${AWS::StackName}-ecs-scale-up'
+      PolicyType: "StepScaling"
+      ScalingTargetId: !Ref "ECSServiceScalableTargetSet1"
+      StepScalingPolicyConfiguration:
+        AdjustmentType: "PercentChangeInCapacity"
+        Cooldown: '300'
+        MinAdjustmentMagnitude: '1'
+        StepAdjustments:
+        - MetricIntervalLowerBound: '0'
+          ScalingAdjustment: '100'
+
+  ECSServiceScalableTargetSet1:
+    Type: "AWS::ApplicationAutoScaling::ScalableTarget"
+    Properties:
+      MaxCapacity: !Ref "PMASMAX"
+      MinCapacity: !Ref "PMASMIN"
+      ResourceId:
+        Fn::Join:
+        - "/"
+        - - "service"
+          - Ref: "ECSCluster"
+          - Fn::GetAtt:
+            - "ECSServiceSet1"
+            - "Name"
+      RoleARN: !Ref "PMIAMScalableTargetRole"
+      ScalableDimension: "ecs:service:DesiredCount"
+      ServiceNamespace: "ecs"
+
+  ECSScaleDownPolicySet1:
+    Type: 'AWS::ApplicationAutoScaling::ScalingPolicy'
+    Properties:
+      PolicyName: !Sub '${AWS::StackName}-ecs-scale-down'
+      PolicyType: "StepScaling"
+      ScalingTargetId: !Ref "ECSServiceScalableTargetSet1"
+      StepScalingPolicyConfiguration:
+        AdjustmentType: "PercentChangeInCapacity"
+        Cooldown: '300'
+        MinAdjustmentMagnitude: '1'
+        StepAdjustments:
+        - MetricIntervalLowerBound: '0'
+          ScalingAdjustment: '-100'
+
+
+  ECSCPUAlarmHighSet1:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: "ECSCPUAlarmHighSet1"
+      AlarmDescription: 'Scale-up if CPU > 80% for 5 minutes'
+      Namespace: 'AWS/ECS'
+      Dimensions:
+      - Name: "ClusterName"
+        Value: !Ref "PMServerEnv"
+      MetricName: "CPUUtilization"
+      ComparisonOperator: "GreaterThanThreshold"
+      Statistic: "Average"
+      Period: '300'
+      EvaluationPeriods: '1'
+      Threshold: '80'
+      AlarmActions:
+      - !Ref "PMECSScaleUpPolicySet1"
+
+  ECSCPUAlarmLowSet1:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: "ECSCPUAlarmLowSet1"
+      AlarmDescription: 'Scale-down if CPU < 25% for 5 minutes'
+      Namespace: 'AWS/ECS'
+      Dimensions:
+      - Name: "ClusterName"
+        Value: !Ref "PMServerEnv"
+      MetricName: "CPUUtilization"
+      ComparisonOperator: "GreaterThanThreshold"
+      Statistic: "Average"
+      Period: '300'
+      EvaluationPeriods: '1'
+      Threshold: '25'
+      AlarmActions:
+      - !Ref "PMECSScaleDownPolicySet1"

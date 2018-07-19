@@ -1,0 +1,8 @@
+create jenkins job
+create parameters
+What jenkins slaves are there?
+create new jenkins slave (maybe)
+create IAM role for Jenkins slave 
+GitHub Credentials in Jenkins??
+Make sure github creds are reflected appropriately in jenkinsfile
+
